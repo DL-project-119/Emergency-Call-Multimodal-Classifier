@@ -19,7 +19,7 @@ SR = 16000
 N_MFCC = 40
 TARGET_T = 300
 
-genai.configure(api_key="AIzaSyBipqUw67CEv6HiafV7gMVMQlWzjHmC7mc")  
+genai.configure(api_key="API_KEY")  
 GEMINI_MODEL = "models/gemini-2.5-flash"
 location_model = genai.GenerativeModel(GEMINI_MODEL)
 summary_model = genai.GenerativeModel(GEMINI_MODEL)
