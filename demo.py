@@ -7,9 +7,11 @@ import whisper
 import google.generativeai as genai
 from transformers import AutoTokenizer, AutoModel, AutoModelForCausalLM, pipeline
 import torch.nn as nn
-import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+import gradio as gr
+import io
+from contextlib import redirect_stdout
 
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print("Device:", device)
 
@@ -17,7 +19,7 @@ SR = 16000
 N_MFCC = 40
 TARGET_T = 300
 
-genai.configure(api_key="API_KEY")  
+genai.configure(api_key="AIzaSyBipqUw67CEv6HiafV7gMVMQlWzjHmC7mc")  
 GEMINI_MODEL = "models/gemini-2.5-flash"
 location_model = genai.GenerativeModel(GEMINI_MODEL)
 summary_model = genai.GenerativeModel(GEMINI_MODEL)
@@ -267,13 +269,81 @@ def print_result(result):
 
     print("\n============================================================\n")
 
+def get_result_text_for_ui(result):
+    stt_text = result["text"]
+    major = result["major"]
+    urgency = result["urgency"]
+    locations = result["locations"]
+    summary = result["llm_summary"]
+
+    if isinstance(locations, list):
+        location_text = ", ".join(map(str, locations)) if locations else "없음"
+    else:
+        location_text = str(locations) if locations else "없음"
+
+    md = f"""
+
+### 📄 STT 추출 내용
+{stt_text}
+
+---
+
+### 🧭 모델 분류 결과
+
+- **상황 분류:** {major}
+- **긴급도:** {urgency}
+
+---
+
+### 🧠 LLM 종합 요약
+
+#### 상황 요약
+{summary.split("=== 대응 필요성 판단 ===")[0].replace("=== 상황 요약 ===", "").strip()}
+
+#### 대응 필요성 판단
+{summary.split("=== 대응 필요성 판단 ===")[1].split("=== 출동 요약 메시지 ===")[0].strip()}
+
+#### 출동 요약 메시지
+{summary.split("=== 출동 요약 메시지 ===")[1].strip()}
+"""
+    return md
+
+
+def run_ui_pipeline(wav_path):
+    if wav_path is None:
+        return "먼저 음성 파일을 업로드하세요."
+
+    result = predict_pipeline(wav_path)
+    return get_result_text_for_ui(result)
+
 
 if __name__ == "__main__":
-    # result = predict_pipeline("./demo/2/64dd752b1ef84058319a7fd1_20230212123359.wav")
-    # print_result(result)
-    
-    result = predict_pipeline("./demo/2/64d9fdff3e12da15ae3a5940_20230211201601.wav")
-    print_result(result)
-    
-    # result = predict_pipeline("./demo/2/6551fb0dd9c67ad7fa18a6fc_20220228.wav")
-    # print_result(result)
+    with gr.Blocks() as demo:
+        gr.Markdown(
+            "# 🆘 119 신고 분석\n"
+            "신고 음성 파일을 업로드하면 STT, 상황 분류, 긴급도, LLM 요약까지 한 번에 보여줍니다."
+        )
+
+        audio_input = gr.Audio(
+            sources=["upload", "microphone"],  
+            type="filepath",                   
+            label="신고 음성 파일"
+        )
+
+        btn = gr.Button("분석 시작")
+
+        gr.Markdown("## 분석 결과")
+        result_output = gr.Markdown()
+
+        btn.click(
+            fn=run_ui_pipeline,
+            inputs=audio_input,
+            outputs=result_output
+        )
+
+        
+    demo.launch(
+        server_name="210.125.91.90",  
+        server_port=7860,       
+    )
+
